@@ -1,0 +1,158 @@
+{{define "toolbar"}}{{$d := .Data}}{{$base := printf "/reap/%s" $d.Kind.Slug}}
+<div class="toolbar" data-actionbar="items">
+  <div class="toolbar-group">
+    <button type="submit" form="filters" name="refresh" value="1" class="tbtn" title="Re-read Plex, Tautulli and {{$d.Kind.Service}}">{{template "icon" "refresh"}}<span>Rescan</span></button>
+    {{if $d.Rows}}<span class="toolbar-sep" aria-hidden="true"></span>
+    {{if eq $d.Tab "eligible"}}
+    <button type="submit" form="items" formaction="{{$base}}/confirm" class="tbtn tbtn-danger" data-needs-selection {{if $d.Snapshot.Incomplete}}disabled title="The scan was incomplete"{{end}}>{{template "icon" "trash"}}<span>Delete selected…</span></button>
+    <button type="submit" form="items" formaction="{{$base}}/ignore" name="action" value="ignore" class="tbtn" data-needs-selection>{{template "icon" "tag"}}<span>Ignore selected</span></button>
+    {{else if eq $d.Tab "held"}}
+    <button type="submit" form="items" formaction="{{$base}}/ignore" name="action" value="ignore" class="tbtn" data-needs-selection>{{template "icon" "tag"}}<span>Ignore selected</span></button>
+    {{else}}
+    <button type="submit" form="items" formaction="{{$base}}/ignore" name="action" value="unignore" class="tbtn" data-needs-selection>{{template "icon" "eye"}}<span>Un-ignore selected</span></button>
+    {{end}}
+    <span class="toolbar-status selection" data-selection-summary>Nothing selected</span>{{end}}
+    <span class="toolbar-status" data-scan-status></span>
+  </div>
+  <div class="toolbar-group">
+    <details class="menu" {{if $d.Errors}}open{{end}}>
+      <summary class="tbtn">{{template "icon" "filter"}}<span>Filter</span></summary>
+      <form method="get" action="{{$base}}" id="filters" class="menu-panel filters" data-scan-form>
+        <label class="field-inline">
+          <span>Unwatched for</span>
+          <input name="unwatched" value="{{$d.Filters.UnwatchedFor}}" size="5" maxlength="32" {{with index $d.Errors "unwatched"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>In library for at least</span>
+          <input name="min_age" value="{{$d.Filters.MinAge}}" size="5" maxlength="32" {{with index $d.Errors "min_age"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>Protect if rated ≥</span>
+          <input name="min_rating" value="{{$d.Filters.MinRating}}" size="4" maxlength="32" placeholder="off" inputmode="decimal" {{with index $d.Errors "min_rating"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>…with at least votes</span>
+          <input name="min_votes" value="{{$d.Filters.MinVotes}}" size="5" maxlength="32" inputmode="numeric" {{with index $d.Errors "min_votes"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>Min size</span>
+          <input name="min_size" value="{{$d.Filters.MinSize}}" size="5" maxlength="32" placeholder="any" {{with index $d.Errors "min_size"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>Sort</span>
+          <select name="sort">
+            <option value="size" {{if eq $d.Filters.Sort "size"}}selected{{end}}>Largest first</option>
+            <option value="staleness" {{if eq $d.Filters.Sort "staleness"}}selected{{end}}>Longest unwatched</option>
+            <option value="rating" {{if eq $d.Filters.Sort "rating"}}selected{{end}}>Lowest rated</option>
+            <option value="title" {{if eq $d.Filters.Sort "title"}}selected{{end}}>Title</option>
+          </select>
+        </label>
+        <label class="field-check" title="Trust matches made on title and year alone. Remakes and same-named shows make these unreliable.">
+          <input type="checkbox" name="fuzzy" value="1" {{if $d.Filters.Fuzzy}}checked{{end}}> Allow title+year matches
+        </label>
+        <input type="hidden" name="tab" value="{{$d.Tab}}">
+        {{if $d.Errors}}<ul class="error-list">{{range $k, $v := $d.Errors}}<li><strong>{{$k}}</strong>: {{$v}}</li>{{end}}</ul>{{end}}
+        <p class="hint muted">Durations: <code>2y</code>, <code>18m</code>, <code>6w</code>, <code>90d</code>. Sizes: <code>500M</code>, <code>4G</code>. Unrated items are always protected when a rating floor is set.</p>
+        <div class="menu-actions"><button type="submit" class="btn btn-primary btn-sm">Apply</button></div>
+      </form>
+    </details>
+  </div>
+</div>
+{{end}}
+{{define "title"}}{{.Data.Kind.Label}} reap{{end}}
+{{define "content"}}{{$d := .Data}}{{$csrf := .CSRF}}{{$base := printf "/reap/%s" $d.Kind.Slug}}
+<div class="page-head">
+  <div>
+    <h1>{{$d.Kind.Label}} · Reap</h1>
+    <p class="muted">{{if eq $d.Kind.Slug "shows"}}Whole series{{else}}Movies{{end}} nobody has watched within the window, biggest first. Deleting goes through {{$d.Kind.Service}}, which removes the files.</p>
+  </div>
+</div>
+
+{{if $d.NotConfigured}}{{template "notconfigured" $d.Error}}
+{{else if $d.Error}}<div class="alert alert-error"><strong>Scan failed.</strong> {{$d.Error}}</div>
+{{else if $d.Snapshot}}
+<p class="scan-meta muted">
+  Scanned <time datetime="{{iso $d.Snapshot.TakenAt}}" title="{{datetime $d.Snapshot.TakenAt}}">{{ago $d.Snapshot.TakenAt}}</time> · {{$d.Plan.Total}} items considered
+  {{if $d.Snapshot.SkippedSections}} · skipped libraries: {{join $d.Snapshot.SkippedSections ", "}}{{end}}
+</p>
+{{template "warnings" $d.Snapshot.Warnings}}
+
+<div class="stats">
+  <div class="stat"><span class="stat-value">{{len $d.Plan.Eligible}}</span><span class="stat-label">eligible</span></div>
+  <div class="stat"><span class="stat-value">{{size $d.Plan.EligibleBytes}}</span><span class="stat-label">reclaimable</span></div>
+  <div class="stat"><span class="stat-value">{{len $d.Plan.HeldBack}}</span><span class="stat-label">held back</span></div>
+  <div class="stat"><span class="stat-value">{{len $d.Plan.Ignored}}</span><span class="stat-label">ignored</span></div>
+</div>
+
+<nav class="tabs" aria-label="Lists">
+  <a href="{{withQuery $base $d.FilterValues "tab" ""}}" {{if eq $d.Tab "eligible"}}aria-current="page"{{end}}>Eligible <span class="count">{{len $d.Plan.Eligible}}</span></a>
+  <a href="{{withQuery $base $d.FilterValues "tab" "held"}}" {{if eq $d.Tab "held"}}aria-current="page"{{end}}>Held back <span class="count">{{len $d.Plan.HeldBack}}</span></a>
+  <a href="{{withQuery $base $d.FilterValues "tab" "ignored"}}" {{if eq $d.Tab "ignored"}}aria-current="page"{{end}}>Ignored <span class="count">{{len $d.Plan.Ignored}}</span></a>
+</nav>
+
+{{if eq $d.Tab "eligible"}}<p class="muted tab-help">These passed every guard and can be deleted. Ignoring one tags it <code>{{$d.IgnoreTag}}</code> in {{$d.Kind.Service}} so it never appears here again.</p>{{end}}
+{{if eq $d.Tab "held"}}<p class="muted tab-help">Unwatched for long enough, but another guard protects them. The reason column says which — usually the quickest way to tune the filters.</p>{{end}}
+{{if eq $d.Tab "ignored"}}<p class="muted tab-help">Tagged in {{$d.Kind.Service}} to be left alone. Remove the tag to have them evaluated again.</p>{{end}}
+
+{{if $d.Rows}}
+<form method="post" id="items" data-selectable>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  {{range $k, $vs := $d.FilterValues}}{{range $vs}}<input type="hidden" name="{{$k}}" value="{{.}}">{{end}}{{end}}
+  <input type="hidden" name="tab" value="{{$d.Tab}}">
+
+  <div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th class="col-check"><input type="checkbox" data-select-all aria-label="Select all on this page"></th>
+        <th>Title</th>
+        <th>Library</th>
+        <th class="num">Size</th>
+        <th>Last watched</th>
+        <th>Added</th>
+        <th class="num">Rating</th>
+        <th>{{if eq $d.Tab "eligible"}}Status{{else}}Why it's held{{end}}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range $d.Rows}}
+      <tr>
+        <td class="col-check">
+          {{if .Arr}}<input type="checkbox" name="key" value="{{.RatingKey}}" data-size="{{with .ReclaimableBytes}}{{.}}{{else}}0{{end}}" aria-label="Select {{.DisplayTitle}}">{{end}}
+        </td>
+        <td>
+          <div class="title">{{.DisplayTitle}}</div>
+          {{if .Arr}}{{if .Arr.IsContinuingSeries}}<span class="badge badge-accent" title="Sonarr still expects new episodes">Continuing</span>{{end}}
+          {{if .MatchedBy.IsFuzzy}}<span class="badge badge-warn" title="Matched on title and year only">Fuzzy match</span>{{end}}{{end}}
+        </td>
+        <td>{{.SectionName}}</td>
+        <td class="num">{{sizep .Size}}</td>
+        <td>
+          {{if .NeverPlayed}}<span class="badge">Never</span>
+          {{else}}<span title="{{datetime .LastActivity}} · from {{.Source}}">{{ago .LastActivity}}</span>{{end}}
+          {{if gt .PlayCount 0}}<div class="muted small">{{.PlayCount}} play{{if gt .PlayCount 1}}s{{end}}</div>{{end}}
+        </td>
+        <td><span title="{{datetime .AddedAt}}">{{date .AddedAt}}</span></td>
+        <td class="num">{{with .Rating}}<span title="{{.Describe}}">{{.}}</span>{{else}}<span class="muted">—</span>{{end}}</td>
+        <td>
+          {{if .Violations}}
+            <ul class="reasons">{{range .Violations}}<li><span class="guard">{{.Guard}}</span> {{.Reason}}</li>{{end}}</ul>
+          {{else}}{{template "state" .State}}{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</form>
+{{$q := $d.FilterValues}}
+{{template "pager" (pager $base (withTab $q $d.Tab) $d.Page $d.Pages)}}
+{{else}}
+<div class="card empty">
+  {{if eq $d.Tab "eligible"}}<p>Nothing is eligible with these filters. Check <em>Held back</em> to see what the guards are protecting.</p>
+  {{else if eq $d.Tab "held"}}<p>Nothing is being held back.</p>
+  {{else}}<p>Nothing is ignored.</p>{{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}

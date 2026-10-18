@@ -1,0 +1,50 @@
+{{define "title"}}Overview{{end}}
+{{define "content"}}{{$d := .Data}}
+<h1>Overview</h1>
+
+<section class="services-strip">
+  {{range $d.Services}}
+  <a class="service-pill {{if .Configured}}ok{{else}}missing{{end}}" href="/settings#{{.Service}}">
+    <span class="dot" aria-hidden="true"></span>{{.Service.Label}}
+    <span class="muted">{{if .Configured}}configured{{else}}not configured{{end}}</span>
+  </a>
+  {{end}}
+</section>
+
+<div class="feature-grid">
+  <a class="card feature" href="/upgrade/movies">
+    <h2>Movie upgrades</h2>
+    <p>Large movies below their quality profile's optimal custom format score. Check indexers for better releases, then have Radarr grab them.</p>
+    <span class="feature-tag">Radarr</span>
+  </a>
+  <a class="card feature" href="/reap/movies">
+    <h2>Movie reap</h2>
+    <p>Movies nobody has watched in a long time, biggest first. Delete them through Radarr, or tag the keepers so they never show up again.</p>
+    <span class="feature-tag">Radarr · Plex · Tautulli</span>
+  </a>
+  <a class="card feature" href="/upgrade/episodes">
+    <h2>Episode upgrades</h2>
+    <p>Large episode files below their profile's optimal score. Check for better releases and have Sonarr replace them.</p>
+    <span class="feature-tag">Sonarr</span>
+  </a>
+  <a class="card feature" href="/reap/shows">
+    <h2>TV reap</h2>
+    <p>Whole series nobody watches any more, biggest first. Ended shows are excluded from re-import; still-airing ones are not unless you ask.</p>
+    <span class="feature-tag">Sonarr · Plex · Tautulli</span>
+  </a>
+</div>
+
+<section class="card">
+  <div class="card-head"><h2>Recent activity</h2><a href="/activity">View all</a></div>
+  {{if $d.Recent}}
+  <table class="table compact">
+    <thead><tr><th>When</th><th>Action</th><th>Item</th><th>Outcome</th><th>By</th></tr></thead>
+    <tbody>
+    {{range $d.Recent}}
+      <tr><td title="{{datetime .TS}}">{{ago .TS}}</td><td>{{template "action" .Action}}</td><td>{{.Title}}</td><td>{{template "outcome" .Outcome}}</td><td>{{.Username}}</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{else}}<p class="muted">Nothing has been changed yet.</p>{{end}}
+</section>
+{{end}}

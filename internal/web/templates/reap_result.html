@@ -1,0 +1,27 @@
+{{define "title"}}Delete results{{end}}
+{{define "content"}}{{$d := .Data}}{{$base := printf "/reap/%s" $d.Kind.Slug}}
+<div class="page-head">
+  <div>
+    <h1>Delete finished</h1>
+    <p class="muted">Freed {{size $d.Result.Reclaimed}}{{if $d.Result.Failed}}; {{$d.Result.Failed}} item{{if ne $d.Result.Failed 1}}s{{end}} could not be deleted{{end}}. Every outcome is recorded on the activity page.</p>
+  </div>
+  <a class="btn btn-primary" href="{{withQuery $base $d.FilterValues "" ""}}">Back to {{$d.Kind.Label}} reap</a>
+</div>
+
+<div class="table-wrap card">
+<table class="table compact">
+  <thead><tr><th>Title</th><th>Outcome</th><th class="num">Freed</th><th>Import exclusion</th><th>Detail</th></tr></thead>
+  <tbody>
+  {{range $d.Result.Outcomes}}
+    <tr>
+      <td>{{.Candidate.DisplayTitle}}</td>
+      <td>{{template "outcome" (printf "%s" .Status)}}</td>
+      <td class="num">{{size .ReclaimedBytes}}</td>
+      <td>{{if .ExclusionAdded}}Added{{else}}<span class="muted">No</span>{{end}}</td>
+      <td class="muted">{{.Message}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{end}}

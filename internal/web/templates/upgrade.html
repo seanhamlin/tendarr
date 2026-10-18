@@ -1,0 +1,171 @@
+{{define "toolbar"}}{{$d := .Data}}{{$base := printf "/upgrade/%s" $d.Kind.Slug}}
+<div class="toolbar" data-actionbar="items">
+  <div class="toolbar-group">
+    <button type="submit" form="filters" name="refresh" value="1" class="tbtn" title="Re-read {{$d.Kind.Service}}">{{template "icon" "refresh"}}<span>Rescan</span></button>
+    {{if $d.Rows}}<span class="toolbar-sep" aria-hidden="true"></span>
+    {{if eq $d.Tab "skipped"}}
+    <button type="submit" form="items" formaction="{{$base}}/monitor" name="action" value="monitor" class="tbtn" data-needs-selection data-max="{{$d.MaxSearch}}" title="Monitor again in {{$d.Kind.Service}} so it can be upgraded">{{template "icon" "eye"}}<span>Monitor again</span></button>
+    {{else}}
+    <button type="submit" form="items" formaction="{{$base}}/check" class="tbtn" data-needs-selection data-max="{{$d.MaxCheck}}" {{if and $d.Job $d.Job.Running}}disabled title="A check is already running"{{end}}>{{template "icon" "search"}}<span>Check releases</span></button>
+    <button type="submit" form="items" formaction="{{$base}}/search" class="tbtn tbtn-primary" data-needs-selection data-max="{{$d.MaxSearch}}">{{template "icon" "grab"}}<span>Upgrade selected</span></button>
+    <button type="submit" form="items" formaction="{{$base}}/monitor" name="action" value="unmonitor" class="tbtn" data-needs-selection data-max="{{$d.MaxSearch}}" title="Unmonitor in {{$d.Kind.Service}}: never upgraded, by this tool or by {{$d.Kind.Service}}'s own searches">{{template "icon" "eye-off"}}<span>Unmonitor selected</span></button>
+    {{end}}
+    <span class="toolbar-status selection" data-selection-summary>Nothing selected</span>{{end}}
+    <span class="toolbar-status" data-scan-status></span>
+  </div>
+  <div class="toolbar-group">
+    <details class="menu" {{if $d.Errors}}open{{end}}>
+      <summary class="tbtn">{{template "icon" "filter"}}<span>Filter</span></summary>
+      <form method="get" action="{{$base}}" id="filters" class="menu-panel filters" data-scan-form>
+        <label class="field-inline">
+          <span>Codecs</span>
+          <select name="codecs" {{with index $d.Errors "codecs"}}aria-invalid="true"{{end}}>
+            <option value="legacy" {{if eq $d.Filters.Codecs "legacy"}}selected{{end}}>x264/h264, Xvid/DivX</option>
+            <option value="avc" {{if eq $d.Filters.Codecs "avc"}}selected{{end}}>x264/h264 only</option>
+            <option value="non-modern" {{if eq $d.Filters.Codecs "non-modern"}}selected{{end}}>Anything not HEVC/AV1</option>
+            <option value="any" {{if eq $d.Filters.Codecs "any"}}selected{{end}}>Any codec (score only)</option>
+          </select>
+        </label>
+        <label class="field-inline">
+          <span>Min file size</span>
+          <input name="min_size" value="{{$d.Filters.MinSize}}" size="5" maxlength="32" {{with index $d.Errors "min_size"}}aria-invalid="true"{{end}}>
+        </label>
+        <label class="field-inline">
+          <span>Sort</span>
+          <select name="sort">
+            <option value="size" {{if eq $d.Filters.Sort "size"}}selected{{end}}>Largest first</option>
+            <option value="headroom" {{if eq $d.Filters.Sort "headroom"}}selected{{end}}>Most score to gain</option>
+            <option value="score" {{if eq $d.Filters.Sort "score"}}selected{{end}}>Lowest score</option>
+            <option value="title" {{if eq $d.Filters.Sort "title"}}selected{{end}}>Title</option>
+          </select>
+        </label>
+        {{if ne $d.Tab "skipped"}}
+        <label class="field-inline">
+          <span>Show</span>
+          <select name="only">
+            <option value="" {{if not $d.Only}}selected{{end}}>All candidates</option>
+            <option value="available" {{if eq $d.Only "available"}}selected{{end}}>Upgrade available</option>
+            <option value="unchecked" {{if eq $d.Only "unchecked"}}selected{{end}}>Not checked yet</option>
+          </select>
+        </label>
+        {{end}}
+        <input type="hidden" name="tab" value="{{$d.Tab}}">
+        {{if $d.Errors}}<ul class="error-list">{{range $k, $v := $d.Errors}}<li><strong>{{$k}}</strong>: {{$v}}</li>{{end}}</ul>{{end}}
+        <div class="menu-actions"><button type="submit" class="btn btn-primary btn-sm">Apply</button></div>
+      </form>
+    </details>
+  </div>
+</div>
+{{end}}
+{{define "title"}}{{.Data.Kind.Label}} upgrades{{end}}
+{{define "content"}}{{$d := .Data}}{{$csrf := .CSRF}}{{$base := printf "/upgrade/%s" $d.Kind.Slug}}
+<div class="page-head">
+  <div>
+    <h1>{{$d.Kind.Label}} · Upgrade</h1>
+    <p class="muted">Large {{if $d.Kind.Episodes}}episode files{{else}}movies{{end}} below their quality profile's optimal custom format score. Check indexers for a better release, then let {{$d.Kind.Service}} grab it — {{$d.Kind.Service}} decides what counts as an upgrade.</p>
+  </div>
+</div>
+
+{{with $d.Job}}
+<div class="card job" data-job-url="{{$base}}/job" data-job-id="{{.ID}}" data-job-running="{{.Running}}">
+  {{if .Running}}
+  <div class="job-head"><strong>Checking releases…</strong> <span data-job-text>{{.Done}} of {{.Total}} done{{with .Current}} · {{.}}{{end}}</span></div>
+  <progress max="{{.Total}}" value="{{.Done}}" data-job-progress></progress>
+  {{else}}
+  <div class="job-head"><strong>Release check finished</strong> <span class="muted">{{ago .Finished}}: {{.Available}} of {{.Total}} have an upgrade available{{if .Failed}}, {{.Failed}} failed{{end}}.</span></div>
+  {{end}}
+</div>
+{{end}}
+
+{{if $d.Scheduler.Covers $d.Kind.Kind}}<p class="scan-meta muted">Scheduled release checks are on ({{$d.Scheduler.PerHour}}/hour{{if $d.Scheduler.Scanning}}, working out what is due{{else if $d.Scheduler.Pending}}, {{$d.Scheduler.Pending}} due{{else if not $d.Scheduler.Built.IsZero}}, everything checked recently{{end}}{{if and $d.Scheduler.Pending (not $d.Scheduler.NextAt.IsZero)}}, next {{until $d.Scheduler.NextAt}}{{end}}). <a href="/settings#autocheck">Change</a></p>
+{{else}}<p class="scan-meta muted">Scheduled release checks are off{{if $d.Scheduler.Enabled}} for {{$d.Kind.Service}}{{end}}. <a href="/settings#autocheck">Turn them on</a> to find upgrades in the background.</p>{{end}}
+{{if $d.Upgrader.Covers $d.Kind.Kind}}<p class="scan-meta muted">Scheduled upgrades are on (one every {{$d.Upgrader.EveryHours}} hour{{if ne $d.Upgrader.EveryHours 1}}s{{end}}, biggest space saving first{{if $d.Upgrader.Pending}}, {{$d.Upgrader.Pending}} waiting{{end}}{{if not $d.Upgrader.NextAt.IsZero}}, next {{until $d.Upgrader.NextAt}}{{end}}). <a href="/settings#autoupgrade">Change</a></p>{{end}}
+
+{{if $d.NotConfigured}}{{template "notconfigured" $d.Error}}
+{{else if $d.Error}}<div class="alert alert-error"><strong>Scan failed.</strong> {{$d.Error}}</div>
+{{else if not $d.Errors}}
+<p class="scan-meta muted">Scanned <time datetime="{{iso $d.ScannedAt}}" title="{{datetime $d.ScannedAt}}">{{ago $d.ScannedAt}}</time> · {{$d.Plan.Scanned}} files matched the codec and size filters</p>
+{{template "warnings" $d.Plan.Warnings}}
+
+<div class="stats">
+  <div class="stat"><span class="stat-value">{{len $d.Plan.Eligible}}</span><span class="stat-label">candidates</span></div>
+  <div class="stat"><span class="stat-value">{{size $d.Plan.EligibleBytes}}</span><span class="stat-label">in those files</span></div>
+  <div class="stat"><span class="stat-value">{{$d.AvailableN}}</span><span class="stat-label">upgrade available</span></div>
+  <div class="stat"><span class="stat-value">{{len $d.Plan.Ineligible}}</span><span class="stat-label">skipped</span></div>
+</div>
+
+<nav class="tabs" aria-label="Lists">
+  <a href="{{withQuery $base $d.FilterValues "tab" ""}}" {{if and (eq $d.Tab "eligible") (not $d.Only)}}aria-current="page"{{end}}>Candidates <span class="count">{{len $d.Plan.Eligible}}</span></a>
+  <a href="{{withQuery $base $d.FilterValues "only" "available"}}" {{if eq $d.Only "available"}}aria-current="page"{{end}}>Upgrade available <span class="count">{{$d.AvailableN}}</span></a>
+  <a href="{{withQuery $base $d.FilterValues "only" "unchecked"}}" {{if eq $d.Only "unchecked"}}aria-current="page"{{end}}>Not checked yet <span class="count">{{$d.UncheckedN}}</span></a>
+  <a href="{{withQuery $base $d.FilterValues "tab" "skipped"}}" {{if eq $d.Tab "skipped"}}aria-current="page"{{end}}>Skipped <span class="count">{{len $d.Plan.Ineligible}}</span></a>
+</nav>
+
+{{if eq $d.Tab "skipped"}}<p class="muted tab-help">Matched the filters, but {{$d.Kind.Service}} would ignore or discard a search. The cause is usually a setting in {{$d.Kind.Service}}, not the file. Unmonitored items can be monitored again from here.</p>
+{{else}}<p class="muted tab-help"><strong>Check releases</strong> runs an interactive search (up to {{$d.MaxCheck}} at a time, slow: every indexer is queried) and shows the best release {{$d.Kind.Service}} would accept. <strong>Upgrade</strong> asks {{$d.Kind.Service}} to search and grab. <strong>Unmonitor</strong> is how to leave a file alone: {{$d.Kind.Service}} never upgrades unmonitored {{if $d.Kind.Episodes}}episodes{{else}}movies{{end}}, and they move to <em>Skipped</em>.</p>{{end}}
+
+{{if $d.Rows}}
+<form method="post" id="items" data-selectable>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  {{range $k, $vs := $d.FilterValues}}{{range $vs}}<input type="hidden" name="{{$k}}" value="{{.}}">{{end}}{{end}}
+  {{if $d.Only}}<input type="hidden" name="only" value="{{$d.Only}}">{{end}}
+  <input type="hidden" name="tab" value="{{$d.Tab}}">
+
+  <div class="table-wrap">
+  <table class="table">
+    <thead>
+      <tr>
+        <th class="col-check"><input type="checkbox" data-select-all aria-label="Select all on this page"></th>
+        <th>Title</th>
+        <th class="num">Size</th>
+        <th>Codec</th>
+        <th>Quality</th>
+        <th class="num" title="Current custom format score / profile cutoff score">Score</th>
+        <th>Missing formats</th>
+        <th>{{if eq $d.Tab "skipped"}}Why it's skipped{{else}}Release check{{end}}</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range $d.Rows}}
+      <tr>
+        <td class="col-check">{{if or (not .Ineligible) (and (eq (printf "%s" .Ineligible) "NOT_MONITORED") (not .SeriesUnmonitored))}}<input type="checkbox" name="key" value="{{.Key}}" data-size="{{.File.Size}}" aria-label="Select {{.DisplayTitle}}">{{end}}</td>
+        <td>
+          <div class="title">{{if $d.Kind.Episodes}}{{.Title}} <span class="muted">{{.Episode}}</span>{{else}}{{.DisplayTitle}}{{end}}</div>
+          {{if and $d.Kind.Episodes .EpisodeTitle}}<div class="muted small">{{.EpisodeTitle}}</div>{{end}}
+          {{if .Profile}}<div class="muted small">{{.Profile.Name}}{{if .SameQualityOnly}} · <span title="The file meets its quality cutoff ({{.Profile.CutoffQuality}}), so only a release of the same quality ({{.File.Quality}}) will be accepted">same quality only</span>{{end}}</div>{{end}}
+        </td>
+        <td class="num">{{size .File.Size}}</td>
+        <td><span title="Reported as: {{.File.RawCodec}}">{{.File.Codec.Label}}</span></td>
+        <td>{{.File.Quality}}{{with .File.Resolution}} <span class="muted small">{{.}}</span>{{end}}</td>
+        <td class="num">{{.File.Score}} <span class="muted">/ {{.CutoffScore}}</span></td>
+        <td class="formats">{{range $i, $f := .MissingFormats}}{{if lt $i 4}}<span class="chip" title="+{{$f.Score}}">{{$f.Name}}</span>{{end}}{{end}}</td>
+        <td>
+          {{if .Ineligible}}<span class="badge badge-warn">{{.Ineligible}}</span> <span class="muted small">{{if .SeriesUnmonitored}}the series is unmonitored in {{$d.Kind.Service}}{{else}}{{.Ineligible.Describe}}{{end}}</span>
+          {{else if .Check}}{{with .Check}}
+            {{if .Error}}<span class="badge badge-danger" title="{{.Error}}">Check failed</span>
+            {{else if .Available}}<span class="badge badge-ok" title="{{.BestTitle}}">Available · score {{.BestScore}}</span>
+              <div class="muted small" title="{{.BestTitle}}">{{.BestQuality}} · {{size .BestSize}}</div>
+            {{else}}<span class="badge" title="{{if .TopRejection}}Most common rejection: {{.TopRejection}}{{end}}">None acceptable</span>
+              <div class="muted small">{{.Total}} found, {{.Rejected}} rejected</div>
+            {{end}}
+            <div class="muted small" title="{{datetime .CheckedAt}}">checked {{ago .CheckedAt}}</div>
+          {{end}}
+          {{else}}<span class="muted">Not checked</span>{{end}}
+        </td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  </div>
+</form>
+{{template "pager" (pager $base $d.PageValues $d.Page $d.Pages)}}
+{{else}}
+<div class="card empty">
+  {{if eq $d.Only "available"}}<p>No checked item has an upgrade available yet. Select some on the <em>Candidates</em> tab and check releases, or turn on <a href="/settings#autocheck">scheduled checks</a>.</p>
+  {{else if eq $d.Only "unchecked"}}<p>Every candidate has been checked at least once.</p>
+  {{else if eq $d.Tab "skipped"}}<p>Nothing was skipped.</p>
+  {{else}}<p>Nothing to upgrade with these filters.</p>{{end}}
+</div>
+{{end}}
+{{end}}
+{{end}}

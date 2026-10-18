@@ -1,0 +1,31 @@
+# Example for Docker Compose or Synology Container Manager (Project).
+# Copy to compose.yaml and adjust the volume path and user.
+services:
+  tendarr:
+    image: ghcr.io/seanhamlin/tendarr:latest
+    container_name: tendarr
+    restart: unless-stopped
+    ports:
+      - "8484:8484"
+    volumes:
+      # Holds the SQLite database (accounts, connection settings, history).
+      - /volume1/docker/tendarr:/data
+    # Run as the NAS user that owns the folder above, so the container can
+    # write to it. On Synology, find yours with `id <username>` over SSH;
+    # 1026:100 is typical for the first user created.
+    user: "1026:100"
+    environment:
+      TZ: Etc/UTC  # your timezone, e.g. Europe/London; used for displayed dates
+      # Set to "true" if you put this behind an HTTPS reverse proxy that does
+      # not send X-Forwarded-Proto.
+      TENDARR_COOKIE_SECURE: auto
+      TENDARR_LOG_FORMAT: text
+
+# Pin the network to a range that cannot overlap your LAN. Left to choose,
+# Docker may pick 192.168.x.0/20, which swallows addresses like 192.168.1.x
+# and makes Plex/Radarr/Sonarr unreachable ("no route to host").
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.201.0.0/24

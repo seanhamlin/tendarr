@@ -1,0 +1,19 @@
+{{define "title"}}Sign in{{end}}
+{{define "content"}}{{$d := .Data}}
+<div class="card auth-card">
+  <h1><img src="/static/icon.svg" alt="" width="28" height="28"> Tendarr</h1>
+  {{with $d.Error}}<div class="alert alert-error" role="alert">{{.}}</div>{{end}}
+  <form method="post" action="/login">
+    <input type="hidden" name="next" value="{{$d.Next}}">
+    <label class="field">
+      <span>Username</span>
+      <input name="username" value="{{$d.Username}}" autocomplete="username" required autofocus maxlength="64">
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <input type="password" name="password" autocomplete="current-password" required maxlength="72">
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+  </form>
+</div>
+{{end}}

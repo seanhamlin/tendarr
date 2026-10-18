@@ -1,0 +1,21 @@
+# Local runtime data: the database holds API keys and password hashes.
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Local overrides (compose.example.yaml is the committed template)
+.env
+.env.*
+compose.yaml
+compose.override.yaml
+
+# Build output
+/tendarr
+/dist/
+coverage.out
+
+# Editors
+.idea/
+.vscode/
+.DS_Store

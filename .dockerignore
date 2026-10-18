@@ -1,0 +1,11 @@
+.git
+.github
+.idea
+.vscode
+data
+*.db
+*.db-*
+compose*.yaml
+Dockerfile
+README.md
+assets

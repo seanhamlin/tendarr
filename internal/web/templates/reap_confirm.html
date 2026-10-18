@@ -1,0 +1,71 @@
+{{define "title"}}Confirm delete{{end}}
+{{define "content"}}{{$d := .Data}}{{$base := printf "/reap/%s" $d.Kind.Slug}}
+<div class="page-head">
+  <div>
+    <h1>Delete {{len $d.Ready}} {{if eq $d.Kind.Slug "shows"}}series{{else}}movie{{if ne (len $d.Ready) 1}}s{{end}}{{end}}?</h1>
+    <p class="muted">The library was rescanned just now and every guard re-checked. {{$d.Kind.Service}} will delete the records <strong>and their files</strong>. This cannot be undone.</p>
+  </div>
+</div>
+
+{{template "warnings" $d.Snapshot.Warnings}}
+
+{{if $d.Refused}}
+<div class="alert alert-warn">
+  <strong>{{len $d.Refused}} selected item{{if ne (len $d.Refused) 1}}s are{{else}} is{{end}} no longer eligible and will not be deleted.</strong>
+  <ul>{{range $d.Refused}}<li>{{.DisplayTitle}} — {{range $i, $v := .Violations}}{{if $i}}; {{end}}{{$v.Reason}}{{end}}</li>{{end}}</ul>
+</div>
+{{end}}
+
+{{if $d.Ready}}
+<div class="stats">
+  <div class="stat"><span class="stat-value">{{len $d.Ready}}</span><span class="stat-label">to delete</span></div>
+  <div class="stat"><span class="stat-value">{{size $d.ReclaimableBytes}}</span><span class="stat-label">will be freed</span></div>
+</div>
+
+<div class="table-wrap card">
+<table class="table compact">
+  <thead><tr><th>Title</th><th>Library</th><th class="num">Size</th><th>Last watched</th><th>Matched by</th></tr></thead>
+  <tbody>
+  {{range $d.Ready}}
+    <tr>
+      <td>{{.DisplayTitle}}{{if .Arr.IsContinuingSeries}} <span class="badge badge-accent">Continuing</span>{{end}}</td>
+      <td>{{.SectionName}}</td>
+      <td class="num">{{sizep .ReclaimableBytes}}</td>
+      <td>{{if .NeverPlayed}}Never (added {{date .AddedAt}}){{else}}{{date .LastActivity}} <span class="muted">via {{.Source}}</span>{{end}}</td>
+      <td>{{.MatchedBy}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+
+<form method="post" action="{{$base}}/delete" class="card confirm-form">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="confirm" value="yes">
+  {{range $k, $vs := $d.FilterValues}}{{range $vs}}<input type="hidden" name="{{$k}}" value="{{.}}">{{end}}{{end}}
+  {{range $d.Keys}}<input type="hidden" name="key" value="{{.}}">{{end}}
+
+  <label class="field-check">
+    <input type="checkbox" name="exclusions" value="1" checked>
+    Add to {{$d.Kind.Service}}'s import exclusion list, so lists cannot re-add them
+  </label>
+  {{if $d.HasContinuing}}
+  <label class="field-check">
+    <input type="checkbox" name="exclude_continuing" value="1">
+    Also exclude the {{$d.ContinuingCount}} still-airing series
+    <small class="muted">— off by default: an exclusion on a continuing show silently stops its next season from ever arriving</small>
+  </label>
+  {{end}}
+
+  <div class="confirm-actions">
+    <a class="btn btn-ghost" href="{{withQuery $base $d.FilterValues "" ""}}">Cancel</a>
+    <button type="submit" class="btn btn-danger">Delete {{len $d.Ready}} and free {{size $d.ReclaimableBytes}}</button>
+  </div>
+</form>
+{{else}}
+<div class="card empty">
+  <p>Nothing in the selection can be deleted.</p>
+  <a class="btn btn-ghost" href="{{withQuery $base $d.FilterValues "" ""}}">Back to the list</a>
+</div>
+{{end}}
+{{end}}

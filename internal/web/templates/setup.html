@@ -1,0 +1,25 @@
+{{define "title"}}Set up{{end}}
+{{define "content"}}{{$d := .Data}}
+<div class="card auth-card">
+  <h1><img src="/static/icon.svg" alt="" width="28" height="28"> Welcome</h1>
+  <p class="muted">No account exists yet. Create the administrator account to get started. This page closes as soon as the account is created.</p>
+  <form method="post" action="/setup" novalidate>
+    <label class="field">
+      <span>Username</span>
+      <input name="username" value="{{$d.Username}}" autocomplete="username" required minlength="3" maxlength="64" autofocus {{with index $d.Errors "username"}}aria-invalid="true"{{end}}>
+      {{with index $d.Errors "username"}}<small class="error">{{.}}</small>{{end}}
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="72" {{with index $d.Errors "password"}}aria-invalid="true"{{end}}>
+      <small class="muted">At least 12 characters.</small>
+    </label>
+    <label class="field">
+      <span>Confirm password</span>
+      <input type="password" name="confirm" autocomplete="new-password" required maxlength="72">
+      {{with index $d.Errors "password"}}<small class="error">{{.}}</small>{{end}}
+    </label>
+    <button type="submit" class="btn btn-primary btn-block">Create account</button>
+  </form>
+</div>
+{{end}}

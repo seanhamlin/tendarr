@@ -1,0 +1,26 @@
+version: "2"
+
+linters:
+  enable:
+    - bodyclose
+    - errorlint
+    - misspell
+    - unconvert
+  settings:
+    misspell:
+      locale: UK
+      ignore-rules:
+        - color
+  exclusions:
+    presets:
+      - std-error-handling
+    rules:
+      # Test fakes deliberately ignore write errors.
+      - path: _test\.go
+        linters: [errcheck, bodyclose]
+      - path: internal/testsvc/
+        linters: [errcheck]
+
+formatters:
+  enable:
+    - gofmt

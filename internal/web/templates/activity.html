@@ -1,0 +1,31 @@
+{{define "title"}}Activity{{end}}
+{{define "content"}}
+<div class="page-head">
+  <div>
+    <h1>Activity</h1>
+    <p class="muted">Every delete, upgrade search and tag change made through this tool, newest first. The same events also go to the container log.</p>
+  </div>
+</div>
+{{if .Data}}
+<div class="table-wrap card">
+<table class="table compact">
+  <thead><tr><th>When</th><th>Action</th><th>Service</th><th>Item</th><th>Outcome</th><th>By</th><th>Detail</th></tr></thead>
+  <tbody>
+  {{range .Data}}
+    <tr>
+      <td title="{{datetime .TS}}">{{datetime .TS}}</td>
+      <td>{{template "action" .Action}}</td>
+      <td>{{.Service}}</td>
+      <td>{{.Title}}</td>
+      <td>{{template "outcome" .Outcome}}</td>
+      <td>{{.Username}}</td>
+      <td class="muted small">{{.Message}}{{with .Details}}{{with index . "sizeBytes"}} · {{sizeAny .}}{{end}}{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+</div>
+{{else}}
+<div class="card empty"><p>Nothing has been changed yet.</p></div>
+{{end}}
+{{end}}

@@ -1,0 +1,195 @@
+{{define "toolbar"}}
+<div class="toolbar">
+  <form method="post" action="/settings/test" class="toolbar-group">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="tbtn">{{template "icon" "plug"}}<span>Test all connections</span></button>
+  </form>
+</div>
+{{end}}
+{{define "title"}}Settings{{end}}
+{{define "content"}}{{$d := .Data}}{{$csrf := .CSRF}}
+<div class="page-head">
+  <div>
+    <h1>Settings</h1>
+    <p class="muted">Each connection is tested live before it is saved. Keys are stored in the database on the data volume and are never sent back to the browser.</p>
+  </div>
+</div>
+
+{{with $d.Statuses}}
+<div class="card">
+  <h2>Connection status</h2>
+  <ul class="status-list">
+  {{range .}}
+    <li class="{{if .OK}}ok{{else if .Configured}}bad{{else}}missing{{end}}"><span class="dot" aria-hidden="true"></span><strong>{{.Service.Label}}</strong> <span class="muted">{{.Detail}}</span></li>
+  {{end}}
+  </ul>
+</div>
+{{end}}
+
+<h2 class="section-title">Connections</h2>
+<div class="settings-grid">
+{{range $d.Services}}
+  <form method="post" action="/settings/services/{{.Service}}" class="card service-form" id="{{.Service}}" novalidate>
+    <input type="hidden" name="csrf" value="{{$csrf}}">
+    <div class="card-head">
+      <h3>{{.Service.Label}}</h3>
+      {{if not .Service.Required}}<span class="badge">Recommended</span>{{end}}
+    </div>
+    {{if eq (printf "%s" .Service) "tautulli"}}<p class="muted small">Without Tautulli, plays by other Plex users are invisible and reap may offer their favourites for deletion.</p>{{end}}
+    <label class="field">
+      <span>URL</span>
+      <input type="url" name="url" value="{{.URL}}" placeholder="{{.Service.URLPlaceholder}}" required maxlength="500" autocomplete="off" {{with index .Errors "url"}}aria-invalid="true"{{end}}>
+      {{with index .Errors "url"}}<small class="error">{{.}}</small>{{end}}
+    </label>
+    <label class="field">
+      <span>{{.Service.KeyLabel}}</span>
+      <input type="password" name="key" maxlength="200" autocomplete="new-password" placeholder="{{if .HasKey}}•••••••• saved — leave blank to keep{{end}}" {{with index .Errors "key"}}aria-invalid="true"{{end}}>
+      {{with index .Errors "key"}}<small class="error">{{.}}</small>{{else}}<small class="muted">{{.Service.KeyHelp}}</small>{{end}}
+    </label>
+    {{with index .Errors "test"}}<div class="alert alert-error small">Connection failed: {{.}}</div>{{end}}
+    {{if .Result}}<div class="alert alert-success small">{{.Result}}</div>{{end}}
+    <div class="form-actions">
+      <button type="submit" name="action" value="test" class="btn btn-ghost btn-sm">Test</button>
+      <button type="submit" name="action" value="save" class="btn btn-primary btn-sm">Test &amp; save</button>
+    </div>
+  </form>
+{{end}}
+</div>
+
+<h2 class="section-title">Scheduled release checks</h2>
+<form method="post" action="/settings/autocheck" class="card" id="autocheck" novalidate>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  <p class="muted small">Works through the candidate lists in the background, running an interactive search for each item and recording whether a better release is available. It never grabs anything: results appear under <em>Upgrade available</em> for you to act on. One budget covers Radarr and Sonarr together, because they usually search the same indexers.</p>
+
+  {{with $d.Scheduler}}{{if .Enabled}}
+  <div class="alert alert-info small">
+    {{if .Scanning}}<strong>Starting.</strong> Working out which items are due by scanning Radarr/Sonarr; this takes a few seconds on a big library. Refresh to see the count.
+    {{else if .Pending}}<strong>Running.</strong> {{.Pending}} item{{if ne .Pending 1}}s{{end}} due for a check, about {{hours .Pending .PerHour}} at {{.PerHour}} an hour.
+      {{if not .NextAt.IsZero}}Next check {{until .NextAt}}.{{end}}
+    {{else if not .Built.IsZero}}<strong>Up to date.</strong> Every candidate was checked within the last {{.RecheckDays}} day{{if ne .RecheckDays 1}}s{{end}}. It looks again {{if not .NextAt.IsZero}}{{until .NextAt}}{{else}}within the hour{{end}}.
+    {{else}}<strong>Starting.</strong> The first scan begins shortly.{{end}}
+    {{if .LastTitle}}Last: {{.LastTitle}} ({{ago .LastAt}}) — {{.LastResult}}.{{end}}
+    {{with .Error}}<span class="error">{{.}}</span>{{end}}
+  </div>
+  {{end}}{{end}}
+
+  <div class="field">
+    <span>Check</span>
+    <label class="field-check"><input type="checkbox" name="radarr" value="1" {{if $d.AutoCheck.Radarr}}checked{{end}}> Movies (Radarr)</label>
+    {{with index $d.AutoErrors "radarr"}}<small class="error">{{.}}</small>{{end}}
+    <label class="field-check"><input type="checkbox" name="sonarr" value="1" {{if $d.AutoCheck.Sonarr}}checked{{end}}> TV episodes (Sonarr)</label>
+    {{with index $d.AutoErrors "sonarr"}}<small class="error">{{.}}</small>{{end}}
+  </div>
+  <div class="filters inline-fields">
+    <label class="field-inline">
+      <span>Checks per hour (total)</span>
+      <input name="per_hour" value="{{$d.AutoCheck.PerHour}}" size="4" maxlength="3" inputmode="numeric" {{with index $d.AutoErrors "per_hour"}}aria-invalid="true"{{end}}>
+    </label>
+    <label class="field-inline">
+      <span>Re-check after (days)</span>
+      <input name="recheck_days" value="{{$d.AutoCheck.RecheckDays}}" size="4" maxlength="3" inputmode="numeric" {{with index $d.AutoErrors "recheck_days"}}aria-invalid="true"{{end}}>
+    </label>
+    <label class="field-inline">
+      <span>Codecs</span>
+      <select name="codecs">
+        <option value="legacy" {{if eq $d.AutoCheck.Codecs "legacy"}}selected{{end}}>x264/h264, Xvid/DivX</option>
+        <option value="avc" {{if eq $d.AutoCheck.Codecs "avc"}}selected{{end}}>x264/h264 only</option>
+        <option value="non-modern" {{if eq $d.AutoCheck.Codecs "non-modern"}}selected{{end}}>Anything not HEVC/AV1</option>
+        <option value="any" {{if eq $d.AutoCheck.Codecs "any"}}selected{{end}}>Any codec (score only)</option>
+      </select>
+    </label>
+    <label class="field-inline">
+      <span>Min movie size</span>
+      <input name="movie_min_size" value="{{$d.AutoCheck.MovieMinSize}}" size="5" maxlength="32" {{with index $d.AutoErrors "movie_min_size"}}aria-invalid="true"{{end}}>
+    </label>
+    <label class="field-inline">
+      <span>Min episode size</span>
+      <input name="episode_min_size" value="{{$d.AutoCheck.EpisodeMinSize}}" size="5" maxlength="32" {{with index $d.AutoErrors "episode_min_size"}}aria-invalid="true"{{end}}>
+    </label>
+  </div>
+  {{if $d.AutoErrors}}<ul class="error-list">{{range $k, $v := $d.AutoErrors}}<li><strong>{{$k}}</strong>: {{$v}}</li>{{end}}</ul>{{end}}
+  <p class="muted small">Checks are spread evenly across the hour (20 an hour is one every 3 minutes), never bunched. Up to {{$d.MaxPerHour}} an hour. Never-checked items go first, then the stalest results. A file that changes is checked again regardless of the window. Checks pause for a service while you run a manual check against it.</p>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-sm">Save schedule</button>
+  </div>
+</form>
+
+<h2 class="section-title">Scheduled upgrades</h2>
+<form method="post" action="/settings/autoupgrade" class="card" id="autoupgrade" novalidate>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  <p class="muted small">Asks Radarr/Sonarr to search for and grab an upgrade, one item at a time, choosing the item whose acceptable release frees the most space. Only items a release check found an upgrade for are considered, so this works best alongside scheduled release checks, and uses the same codec and size filters. Results older than the re-check window are not trusted.</p>
+
+  {{with $d.Upgrader}}{{if .Enabled}}
+  <div class="alert alert-info small">
+    <strong>On.</strong> {{if .Pending}}{{.Pending}} item{{if ne .Pending 1}}s{{end}} with an upgrade waiting.{{else}}No upgrades waiting yet.{{end}}
+    {{if not .NextAt.IsZero}}Next look {{until .NextAt}}.{{end}}
+    {{if .LastTitle}}Last: {{.LastTitle}} ({{ago .LastAt}}) — {{.LastResult}}.{{end}}
+    {{with .Error}}<span class="error">{{.}}</span>{{end}}
+  </div>
+  {{end}}{{end}}
+
+  <div class="field">
+    <span>Upgrade</span>
+    <label class="field-check"><input type="checkbox" name="radarr" value="1" {{if $d.AutoUpgrade.Radarr}}checked{{end}}> Movies (Radarr)</label>
+    {{with index $d.UpgradeErrors "radarr"}}<small class="error">{{.}}</small>{{end}}
+    <label class="field-check"><input type="checkbox" name="sonarr" value="1" {{if $d.AutoUpgrade.Sonarr}}checked{{end}}> TV episodes (Sonarr)</label>
+    {{with index $d.UpgradeErrors "sonarr"}}<small class="error">{{.}}</small>{{end}}
+  </div>
+  <div class="filters inline-fields">
+    <label class="field-inline">
+      <span>One upgrade every (hours)</span>
+      <input name="every_hours" value="{{$d.AutoUpgrade.EveryHours}}" size="4" maxlength="3" inputmode="numeric" {{with index $d.UpgradeErrors "every_hours"}}aria-invalid="true"{{end}}>
+    </label>
+  </div>
+  {{with index $d.UpgradeErrors "every_hours"}}<ul class="error-list"><li><strong>every_hours</strong>: {{.}}</li></ul>{{end}}
+  <p class="muted small">One budget covers Radarr and Sonarr together, from 1 to {{$d.MaxUpgradeHrs}} hours apart. The gap holds across restarts. An upgraded item's release check is cleared, so it is only tried again after a fresh check finds something. Every upgrade is in the Activity log as user "scheduler".</p>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-sm">Save schedule</button>
+  </div>
+</form>
+
+<h2 class="section-title">Library</h2>
+<form method="post" action="/settings/library" class="card" id="library" novalidate>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  <label class="field">
+    <span>Ignore tag</span>
+    <input name="ignore_tag" value="{{$d.IgnoreTag}}" maxlength="64" required pattern="[a-z0-9\-]+" {{with index $d.LibraryErrors "ignore_tag"}}aria-invalid="true"{{end}}>
+    {{with index $d.LibraryErrors "ignore_tag"}}<small class="error">{{.}}</small>{{else}}<small class="muted">Radarr/Sonarr tag applied by "Ignore". Anything carrying it never appears in reap. You can also add it by hand in Radarr or Sonarr. Changing it does not move existing tags.</small>{{end}}
+  </label>
+  <label class="field">
+    <span>Libraries to skip during reap</span>
+    <textarea name="excluded_sections" rows="3" placeholder="UHD Movies&#10;UHD TV" {{with index $d.LibraryErrors "excluded_sections"}}aria-invalid="true"{{end}}>{{$d.Excluded}}</textarea>
+    {{with index $d.LibraryErrors "excluded_sections"}}<small class="error">{{.}}</small>{{else}}<small class="muted">One Plex library name per line. Useful for libraries no Radarr/Sonarr instance manages, such as a separate 4K library; they would only show as unmanaged noise.</small>{{end}}
+  </label>
+  <label class="field">
+    <span>Path mappings</span>
+    <textarea name="path_map" rows="3" placeholder="/movies:/mnt/media/movies&#10;/tv:/mnt/media/tv" class="mono" {{with index $d.LibraryErrors "path_map"}}aria-invalid="true"{{end}}>{{$d.PathMap}}</textarea>
+    {{with index $d.LibraryErrors "path_map"}}<small class="error">{{.}}</small>{{else}}<small class="muted">One <code>arr-path:plex-path</code> per line, for when Radarr/Sonarr and Plex see the same folders under different paths. Used to prove a Radarr/Sonarr record refers to the same file Plex shows before it can be deleted. Without it the last folder name is compared, which fails safe.</small>{{end}}
+  </label>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-sm">Save library settings</button>
+  </div>
+</form>
+
+<h2 class="section-title">Account</h2>
+<form method="post" action="/settings/password" class="card narrow-card" id="account" novalidate>
+  <input type="hidden" name="csrf" value="{{$csrf}}">
+  <label class="field">
+    <span>Current password</span>
+    <input type="password" name="current" autocomplete="current-password" required maxlength="72" {{with index $d.PasswordErrors "current"}}aria-invalid="true"{{end}}>
+    {{with index $d.PasswordErrors "current"}}<small class="error">{{.}}</small>{{end}}
+  </label>
+  <label class="field">
+    <span>New password</span>
+    <input type="password" name="password" autocomplete="new-password" required minlength="12" maxlength="72" {{with index $d.PasswordErrors "password"}}aria-invalid="true"{{end}}>
+  </label>
+  <label class="field">
+    <span>Confirm new password</span>
+    <input type="password" name="confirm" autocomplete="new-password" required maxlength="72">
+    {{with index $d.PasswordErrors "password"}}<small class="error">{{.}}</small>{{else}}<small class="muted">At least 12 characters. Other signed-in browsers are signed out.</small>{{end}}
+  </label>
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary btn-sm">Change password</button>
+  </div>
+</form>
+{{end}}
