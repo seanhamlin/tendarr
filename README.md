@@ -5,62 +5,122 @@
   </picture>
 </p>
 
-Tend your Plex library: prune what nobody watches and shape what stays
-into better files. Tendarr finds files worth upgrading and content nobody
- watches and hands the actual work to Radarr and Sonarr.
+<p align="center">
+  <strong>Better files, less clutter: a gardener for your Plex library.</strong><br>
+  Tendarr finds the movies and episodes worth upgrading, and the ones nobody watches,<br>
+  then hands the actual work to Radarr and Sonarr.
+</p>
 
-| Feature | What it does | Talks to |
-|---|---|---|
-| **Movie upgrade** | Large movies below their quality profile's optimal custom format score. Check indexers for a better release, then have Radarr search and grab. | Radarr |
-| **Movie reap** | Movies unwatched for a long time, largest first. Delete through Radarr, or tag keepers so they never show up again. | Plex, Tautulli, Radarr |
-| **TV episode upgrade** | The same as movie upgrade, per episode file. | Sonarr |
-| **TV reap** | Whole series nobody watches, largest first. | Plex, Tautulli, Sonarr |
+<p align="center">
+  <a href="https://github.com/seanhamlin/tendarr/actions/workflows/ci.yml"><img src="https://github.com/seanhamlin/tendarr/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/seanhamlin/tendarr/pkgs/container/tendarr"><img src="https://img.shields.io/badge/ghcr.io-seanhamlin%2Ftendarr-blue?logo=docker&logoColor=white" alt="Container image"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licence-MIT-green" alt="MIT licence"></a>
+</p>
 
-It is a single Go binary with an embedded SQLite database, shipped as a ~25 MB
-multi-arch container image (amd64 and arm64).
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/upgrade-dark.png">
+  <img src="assets/screenshots/upgrade-light.png" alt="The movie upgrade page: large x264 files below their quality profile's custom format score, with the best release Radarr would accept for each">
+</picture>
 
-## Running it
+## Why Tendarr
 
-### Docker Compose / Synology Container Manager
+A library that has grown for years is full of big old x264 rips that a better,
+smaller release could replace, and of films nobody has opened since the day they
+were added. Radarr and Sonarr will happily upgrade and delete, but they will not
+tell you *which* files are worth the trouble. Tendarr does.
 
-Copy [`compose.example.yaml`](compose.example.yaml) to `compose.yaml`, adjust it,
-and start it:
+- **Upgrade what matters.** Lists large files below their quality profile's custom
+  format score, checks your indexers for a release Radarr/Sonarr would actually
+  accept, and shows how much space each upgrade saves.
+- **Reap what nobody watches.** Finds movies and whole series unwatched for years,
+  using Plex *and* Tautulli history so other household members' favourites are
+  never mistaken for clutter.
+- **Your *arr apps stay in charge.** Tendarr never downloads, imports or deletes
+  files itself. It asks Radarr and Sonarr, using your quality profiles, indexers and
+  download clients.
+- **Safe by default.** Well-rated films are protected, every delete is checked
+  twice and confirmed, and anything that cannot be proven to be the right file is
+  never offered for deletion.
+- **Hands-off when you want it.** Optional scheduled release checks and scheduled
+  upgrades work through the backlog at a pace your indexers will tolerate.
+- **Tiny and self-contained.** One Go binary with an embedded SQLite database, in a
+  multi-arch (amd64 and arm64) distroless image. Runs happily on a Synology NAS.
+
+## Features
+
+### Upgrade
+
+For movies (Radarr) and individual episodes (Sonarr). Pick the codecs worth
+replacing (x264 and Xvid by default) and a minimum size, and Tendarr lists every
+file that Radarr/Sonarr could act on, with its custom format score and the formats
+it is missing.
+
+**Check releases** runs an interactive search and records the best release the
+*arr would grab, so you see what an upgrade would bring before asking for it.
+**Upgrade selected** then sends the search to Radarr/Sonarr, which grabs and imports
+as usual.
+
+### Reap
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/reap-dark.png">
+  <img src="assets/screenshots/reap-light.png" alt="The movie reap page: movies unwatched for over two years, biggest first, with last-watched date, rating and status">
+</picture>
+
+Movies and whole TV series nobody has watched in a long time (two years by
+default), biggest first. Delete them through Radarr/Sonarr from a confirmation page,
+or **Ignore** the keepers so they never show up again.
+
+### Scheduled checks and upgrades
+
+Turn on **scheduled release checks** and Tendarr checks your backlog in the
+background, spreading the searches evenly across the hour. Add **scheduled
+upgrades** and it grabs the best of what it found, one item at a time, biggest
+space saving first (one every 2 hours by default). Both are off until you turn
+them on.
+
+### Overview and activity
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/screenshots/overview-dark.png">
+  <img src="assets/screenshots/overview-light.png" alt="The overview page: connected services, the four tools, and recent activity including scheduled upgrades and deletes">
+</picture>
+
+Every delete, upgrade, ignore and monitoring change is recorded with who (or which
+schedule) did it, on the **Activity** page and in the container log.
+
+<sub>Screenshots use a demo library of public-domain films and TV.</sub>
+
+## Quick start
+
+```yaml
+# compose.yaml
+services:
+  tendarr:
+    image: ghcr.io/seanhamlin/tendarr:latest
+    container_name: tendarr
+    restart: unless-stopped
+    ports:
+      - "8484:8484"
+    volumes:
+      - /volume1/docker/tendarr:/data   # the database lives here
+    environment:
+      PUID: 1026   # owner of the folder above: `id <user>` shows it
+      PGID: 100
+      TZ: Europe/London
+```
 
 ```bash
 docker compose up -d
-docker compose logs -f
 ```
 
-On a Synology NAS, Container Manager → **Project** → **Create** accepts the same file.
+Open `http://<host>:8484`, create the administrator account, then connect your
+services under **Settings**. [`compose.example.yaml`](compose.example.yaml) has a
+fuller example with comments.
 
-Then open `http://<nas>:8484`. On first visit you are asked to create the
-administrator account. Until that account exists every page redirects to setup,
-so do it straight away. After that, go to **Settings** and connect your services.
-
-#### Volume permissions
-
-Set `PUID` and `PGID` to the user and group that own the `/data` folder on the
-host. On Synology, `id <your-nas-user>` over SSH shows them; `1026` and `100` are
-typical for the first user created. In Container Manager's own wizard, add them
-under **Environment**; no `user` setting is needed.
-
-```yaml
-environment:
-  PUID: 1026
-  PGID: 100
-```
-
-The container starts as root only long enough to give `/data` to that user and
-group, then drops to them before opening the database or the port; nothing runs
-as root after that. Files already owned correctly are left alone, so restarts are
-quick. Without `PUID`/`PGID` it uses `65532:65532`, the user earlier images ran as.
-
-Starting the container with an explicit user (`user:` in Compose, `--user` with
-`docker run`) still works: it then runs as that user, ignores `PUID`/`PGID`, and
-changes no ownership, so the folder must already be writable by it.
-
-If the volume is not writable, the container exits at startup and logs the uid and
-gid it is running as.
+On a **Synology NAS**, paste the same file into Container Manager → **Project** →
+**Create**, or use the container wizard and add `PUID`/`PGID` under
+**Environment**. No `user` setting is needed.
 
 ### Environment variables
 
@@ -68,41 +128,44 @@ Everything else is configured in the web UI. None of these are required.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PUID` / `PGID` | `65532` | User and group to run as; `/data` is given to them at startup |
+| `PUID` / `PGID` | `65532` | The user and group to run as. Set them to the owner of the `/data` folder on the host. At startup the container gives `/data` to them, then drops root before doing anything else. If you set `user:` (or `--user`) instead, that user is used as-is and nothing is changed |
+| `TZ` | UTC | Timezone for displayed dates |
 | `TENDARR_LISTEN_ADDR` | `:8484` | Listen address |
 | `TENDARR_DATA_DIR` | `/data` | Where the SQLite database lives |
 | `TENDARR_COOKIE_SECURE` | `auto` | `auto` marks the session cookie `Secure` when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Set `true` behind an HTTPS proxy that does not send that header |
 | `TENDARR_SESSION_TTL` | `168h` | How long a sign-in lasts without activity |
-| `TENDARR_TRUSTED_ORIGINS` | – | Comma-separated extra origins allowed to submit forms, e.g. `https://plex-tools.example.com`, for reverse proxies that rewrite `Host` |
+| `TENDARR_TRUSTED_ORIGINS` | – | Comma-separated extra origins allowed to submit forms, e.g. `https://tendarr.example.com`, for reverse proxies that rewrite `Host` |
 | `TENDARR_LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `TENDARR_LOG_FORMAT` | `text` | `text` or `json` |
-| `TZ` | UTC | Timezone for displayed dates |
 
-Logs go to stdout, so `docker logs` / Container Manager's log view show them.
+If `/data` is not writable, the container exits at startup and logs the uid and
+gid it is running as.
 
 ### Connecting services
 
-| Service | Where the key is |
-|---|---|
-| Plex | Open any item in Plex Web → **Get Info** → **View XML**; the token is the `X-Plex-Token` value in the URL |
-| Tautulli | Settings → Web Interface → API → API Key |
-| Radarr / Sonarr | Settings → General → Security → API Key |
+| Service | Needed for | Where the key is |
+|---|---|---|
+| Radarr | Movie upgrade and reap | Settings → General → Security → API Key |
+| Sonarr | Episode upgrade and TV reap | Settings → General → Security → API Key |
+| Plex | Reap | Open any item in Plex Web → **Get Info** → **View XML**; the token is the `X-Plex-Token` value in the URL |
+| Tautulli | Reap (optional, recommended) | Settings → Web Interface → API → API Key |
 
-Every connection is **tested live before it is saved**. Saving fails on a wrong
-key, an unreachable host, or the wrong application at that URL (for example
-Sonarr's address in the Radarr field). Keys are never sent back to the browser,
-and a blank key field keeps the saved one.
+Every connection is **tested live before it is saved**, so a wrong key, an
+unreachable host or the wrong app at that address (Sonarr's URL in the Radarr
+field) is caught straight away. Keys are never sent back to the browser.
 
-Tautulli is optional but strongly recommended. Plex only reports watch history for
-the account that owns the token. Without Tautulli, plays by other household users
-are invisible, and their favourites can look unwatched.
+Tautulli is optional but strongly recommended: Plex only reports watch history for
+the account that owns the token, so without Tautulli other users' plays are
+invisible.
 
-## How reap decides
+## How it decides
+
+### Reap
 
 An item is **eligible** only when every guard passes. The guards run twice: once
-to build the list, and again immediately before each delete. The delete endpoint
-also refuses anything the server cannot see in its own scan, so a stale or
-tampered form cannot delete something it should not.
+to build the list, and again immediately before each delete. The server also
+refuses to delete anything it cannot see in its own scan, so a stale or tampered
+form cannot delete something it should not.
 
 | Guard | Default | Meaning |
 |---|---|---|
@@ -113,11 +176,9 @@ tampered form cannot delete something it should not.
 | Management | – | Only items Radarr/Sonarr can actually delete, see below |
 | Ignored | – | Anything carrying the ignore tag |
 
-The **last watched** date is the later of Plex's and Tautulli's. Neither source
-is complete on its own. Tautulli only knows about plays since it was installed,
-and Plex only knows the token owner's plays.
-
-### What can and cannot be deleted
+The **last watched** date is the later of Plex's and Tautulli's. Neither is
+complete on its own: Tautulli only knows plays since it was installed, and Plex
+only knows the token owner's.
 
 | State | Meaning | Deletable |
 |---|---|---|
@@ -128,31 +189,24 @@ and Plex only knows the token owner's plays.
 | Fuzzy match | Matched on title and year only | only with **Allow title+year matches** |
 
 "Same files" is proven by comparing the Plex library folder with the Radarr/Sonarr
-root folder, plus the exact file name for movies. If the two apps see your storage
+root folder, plus the exact file name for movies. If the apps see your storage
 under different paths, add **Path mappings** in Settings
-(`/movies:/mnt/media/movies`) to make the check exact. Without them it compares the
-last folder name, which fails safe: an unproven match is never deletable.
+(`/movies:/mnt/media/movies`). Without them it compares the last folder name, which
+fails safe: an unproven match is never deletable.
 
-### Ignoring items
+**Ignore selected** adds a tag (default `tendarr-ignore`) to the item in
+Radarr/Sonarr; tagging by hand there works too. Ignored items are never offered for
+deletion. **Un-ignore** removes the tag.
 
-**Ignore selected** adds a tag (default `tendarr-ignore`, configurable)
-to the item in Radarr or Sonarr. Tagged items move to the **Ignored** tab and are
-never offered for deletion. You can also apply the tag by hand in Radarr or
-Sonarr; it has the same effect. **Un-ignore** removes it.
+Deleting adds an **import exclusion** by default, so an import list cannot re-add
+the item tomorrow. Still-airing series are the exception, because an exclusion on a
+continuing show silently stops its next season; the confirmation page offers it as
+a separate, unticked option.
 
-### Import exclusions
+### Upgrade
 
-Deleting adds the item to the import exclusion list by default, so an import list
-cannot re-add it tomorrow. **Still-airing series are the exception**: an
-exclusion on a continuing show stops its next season from ever arriving, and the
-cause is invisible months later. The confirmation page offers that as a separate,
-unticked option.
-
-## How upgrade decides
-
-A file is listed when it is at least the minimum size and in one of the selected
-codecs (by default x264/h264 and Xvid/DivX). It goes on the **Candidates** tab
-only when Radarr/Sonarr could actually act on a search:
+A file is a **candidate** when it is at least the minimum size, in one of the
+selected codecs, and Radarr/Sonarr could actually act on a search:
 
 - the movie or episode (and its series) is **monitored**
 - the quality profile **allows upgrades**
@@ -163,87 +217,79 @@ only when Radarr/Sonarr could actually act on a search:
 Anything else goes on **Skipped** with the reason, because the cause is usually a
 Radarr/Sonarr setting rather than the file.
 
-**Check releases** runs an interactive search in the background for up to 50
-selected items, one at a time to go easy on indexers. It records the best release
-Radarr/Sonarr would accept. Results are cached and shown with their age, and the
-**Upgrade available** tab lists only items with an acceptable release, and **Not checked yet** lists those never checked. The same choices are in the **Show** filter.
+**Check releases** searches up to 50 selected items in the background, one at a
+time to go easy on indexers. Results are cached and shown with their age; the
+**Upgrade available** and **Not checked yet** tabs filter on them.
 
-**Upgrade selected** sends one search command for the selection. Radarr/Sonarr
-decides what counts as an upgrade and grabs it.
+**Unmonitor selected** is how to leave a file alone: unmonitored items are never
+upgraded, by Tendarr or by Radarr/Sonarr's own searches. **Monitor again** on the
+Skipped tab reverses it. Tendarr never changes a whole series' monitoring, because
+that changes what Sonarr downloads. Unmonitoring has no effect on reap, and reap's
+Ignore has no effect on upgrades.
 
-**Unmonitor selected** is how to leave a file alone. It unmonitors the movie in
-Radarr, or the episodes in Sonarr. Unmonitored items are never upgraded, by this
-tool or by Radarr/Sonarr's own scheduled searches, and they move to **Skipped**.
-**Monitor again** on the Skipped tab reverses it. For an episode, this only works
-when its series is still monitored; the app never changes a whole series'
-monitoring, because that changes what Sonarr downloads.
+**The quality cutoff catch.** Once a file meets its profile's *quality* cutoff,
+Radarr/Sonarr only accepts a custom-format upgrade from a release of the **same
+quality**: a WEBDL-1080p file rejects every Bluray-1080p release, however well it
+scores. Such rows are marked *same quality only*. To let the score decide, group
+the qualities you consider equivalent in the quality profile.
 
-Unmonitoring has no effect on reap. Reap's **Ignore** is a separate tag, so you can
-stop upgrading a file without protecting it from deletion, and the reverse.
+### Schedules
 
-### Scheduled release checks
+**Scheduled release checks** (Settings, off by default):
 
-Settings → **Scheduled release checks** runs the same checks in the background,
-so upgrades turn up without you starting them. It is **off by default**.
+- One budget across Radarr and Sonarr, default 20 searches an hour (up to 60),
+  spaced evenly rather than in bursts. They usually share indexers, so the combined
+  rate is what trackers see.
+- Never-checked items first, then the stalest results, largest first, alternating
+  between movies and episodes.
+- A result is trusted for the re-check window (default 7 days), or until the file
+  changes.
+- Pauses for a service while you run a manual check against it.
+- Only checks; it never grabs.
 
-- **One budget across Radarr and Sonarr**, default 20 an hour, maximum 60. They
-  usually search the same indexers, so the combined rate is what trackers see.
-- **Evenly spaced**: 20 an hour means one every 3 minutes, never a burst.
-- **Never-checked items first**, then the stalest results, largest first, and
-  alternating between movies and episodes.
-- A result is trusted for the **re-check window** (default 7 days). An item whose
-  file has changed is checked again regardless.
-- It **pauses for a service** while you run a manual check against it, so the two
-  never search the same indexers at once.
-- It **only checks; it never grabs**. Results show up under **Upgrade available**,
-  and each check is logged to the container log. To act on them automatically,
-  turn on scheduled upgrades.
+**Scheduled upgrades** (Settings, off by default):
 
-### Scheduled upgrades
-
-Settings → **Scheduled upgrades** grabs what the release checks found, one item at
-a time. It is **off by default**.
-
-- **Biggest space saving first**: the item whose acceptable release is smallest
-  relative to its current file goes next, across movies and episodes.
-- **One budget across Radarr and Sonarr**, default one every 2 hours (1 to 168).
-  The gap is stored, so restarting the container does not trigger an early grab.
-- **Only fresh results count**: the check must be for the current file and inside
-  the scheduled checks' re-check window. It uses the same codec and size filters.
-- Each upgrade is the same search as **Upgrade selected**, logged in Activity as
-  user `scheduler`. The item's release check is then cleared, so it is only tried
-  again once a new check finds something.
-
-### The quality cutoff catch
-
-Once a file meets its profile's *quality* cutoff, Radarr/Sonarr only accepts a
-custom-format upgrade from a release of the **same quality**. For example, a
-WEBDL-1080p file scoring 2 rejects every Bluray-1080p release, however highly it
-scores. Such rows are marked *same quality only*. The fix lives in the quality profile: group the qualities you
-consider equivalent (Bluray-1080p with WEB 1080p) so the score decides.
+- Grabs the item whose acceptable release frees the most space, across movies and
+  episodes.
+- One budget across Radarr and Sonarr, default one every 2 hours (1 to 168). The
+  gap survives restarts.
+- Only fresh results count: the check must be for the current file and inside the
+  re-check window.
+- Each upgrade is logged in Activity as user `scheduler`, and the item's result is
+  cleared so it is only tried again after a new check finds something.
 
 ## Security
 
-- Single administrator account, bcrypt-hashed password (minimum 12 characters).
-  Failed sign-ins are rate limited per client address.
-- Sessions are random 256-bit tokens. Only their SHA-256 hash is stored, and the
-  cookie is `HttpOnly` and `SameSite=Lax`. Changing the password signs out every
-  other browser.
-- Cross-site form posts are refused (Go's `CrossOriginProtection`), and every form
-  also carries a per-session CSRF token.
+- Single administrator account with a bcrypt-hashed password (minimum 12
+  characters) and rate-limited sign-in.
+- Sessions are random 256-bit tokens, stored only as SHA-256 hashes, in
+  `HttpOnly`, `SameSite=Lax` cookies. Changing the password signs out every other
+  browser.
+- Cross-site form posts are refused, and every form carries a CSRF token.
 - Strict Content Security Policy: no inline scripts, no third-party assets.
-- All input is validated server side. Selections are checked against the
-  server's own scan, never trusted from the form.
-- API keys are stored in the SQLite database on the data volume. Protect that
-  folder like you would the keys themselves.
-- Tokens are sent as headers, except Tautulli's, which only accepts a query
-  parameter. That key is scrubbed from every error message and log line.
+- Every selection is checked against the server's own scan, never trusted from the
+  form.
+- API keys live in the SQLite database on the data volume; protect that folder
+  like the keys themselves. Tautulli's key, which it only accepts as a query
+  parameter, is scrubbed from every error and log line.
+- The process runs as an unprivileged user; root is only used at startup to give
+  `/data` to `PUID:PGID`.
 
-The app is designed for a home network. If you expose it beyond that, put it
-behind an HTTPS reverse proxy.
+Tendarr is designed for a home network. To expose it beyond that, put it behind an
+HTTPS reverse proxy.
 
-Every delete, upgrade search and tag change is recorded on the **Activity** page
-and in the container log.
+## Compared with Slimarr
+
+[Slimarr](https://github.com/theantipopau/slimarr) shrinks a Plex library by
+searching Usenet for smaller releases and replacing files itself via SABnzbd or
+NZBGet. Tendarr is the better fit if you:
+
+- want **better files, not just smaller ones**, judged by your Radarr/Sonarr
+  quality profiles and custom format scores;
+- want Radarr and Sonarr to stay in charge of searching, grabbing and importing,
+  with any indexer or download client they support;
+- also want to **remove what nobody watches**, using Plex and Tautulli history;
+- prefer reviewing changes before they happen, with automation as an option.
 
 ## Development
 
@@ -255,10 +301,18 @@ golangci-lint run               # lint, as CI runs it
 TENDARR_DATA_DIR=./data TENDARR_LISTEN_ADDR=127.0.0.1:8484 go run ./cmd/tendarr
 ```
 
-The tests run every flow (setup, sign-in, settings validation, reap, ignore,
-delete, upgrade search and release checks) against in-process fakes of Plex,
-Tautulli, Radarr and Sonarr (`internal/testsvc`). They assert on the exact
-requests that would reach the real services.
+The tests run every flow (setup, sign-in, settings, reap, ignore, delete, upgrade
+search, release checks and schedules) against in-process fakes of Plex, Tautulli,
+Radarr and Sonarr (`internal/testsvc`), asserting on the exact requests that would
+reach the real services.
+
+To explore the UI without a media server, run the demo used for the screenshots.
+It serves a public-domain library at `http://127.0.0.1:18490`, user `admin`,
+password `demo-password-123`:
+
+```bash
+TENDARR_DEMO=1 go test ./internal/demo -run TestDemo -timeout 0
+```
 
 | Package | Responsibility |
 |---|---|
@@ -267,36 +321,15 @@ requests that would reach the real services.
 | `internal/reap` | Guards, planning and deletion |
 | `internal/upgrade` | Upgrade eligibility and release evaluation |
 | `internal/store` | SQLite: accounts, sessions, settings, release checks, audit log |
-| `internal/app` | Service layer: caching, actions, audit, background jobs |
+| `internal/app` | Service layer: caching, actions, audit, background jobs and schedules |
 | `internal/web` | Handlers, templates, auth |
 
-### CI/CD
-
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs tests (with the race
-detector), `golangci-lint` and `govulncheck` on every push and pull request. It
-then builds the image, starts it, and probes it before pushing to GHCR:
-`main` from the `main` branch, and the tag name plus `latest` from any git tag.
-Pull requests build but do not push.
-
-[Dependabot](.github/dependabot.yml) keeps Go modules, GitHub Actions and the
-Docker base images up to date weekly.
-
-After the first push, check the package's visibility under the repository's
-**Packages** settings. Make it public if you want to pull it without credentials.
-
-## Similar projects
-
-[Slimarr](https://github.com/theantipopau/slimarr) shrinks a Plex library by
-searching Usenet for smaller, better-compressed releases and replacing files
-itself via SABnzbd or NZBGet. Tendarr is the better fit if you:
-
-- want **better files, not just smaller ones**: upgrades are judged by your
-  Radarr/Sonarr quality profiles and custom format scores;
-- want Radarr and Sonarr to stay in charge of searching, grabbing and
-  importing, with any indexer or download client they support;
-- also want to **remove what nobody watches**, using Plex and Tautulli watch
-  history;
-- prefer reviewing each change before it happens over overnight automation.
+[CI](.github/workflows/ci.yml) runs the tests with the race detector,
+`golangci-lint` and `govulncheck` on every push and pull request, then builds the
+image and smoke-tests it (including `PUID`/`PGID`) before pushing to GHCR: `main`
+from the `main` branch, and the tag name plus `latest` from git tags.
+[Dependabot](.github/dependabot.yml) keeps Go modules, Actions and base images
+current.
 
 ## Licence
 
