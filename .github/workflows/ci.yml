@@ -136,6 +136,17 @@ jobs:
           docker exec smoke /usr/local/bin/tendarr healthcheck
           docker logs smoke
           docker rm -f smoke
+          # PUID/PGID must hand a host folder to that user and run as it.
+          mkdir -p "$RUNNER_TEMP/puid"
+          docker run -d --name puid -e PUID=1234 -e PGID=2345 -v "$RUNNER_TEMP/puid:/data" tendarr:smoke
+          for i in $(seq 1 30); do
+            if docker exec puid /usr/local/bin/tendarr healthcheck; then break; fi
+            sleep 1
+          done
+          docker logs puid
+          test "$(stat -c %u:%g "$RUNNER_TEMP/puid" "$RUNNER_TEMP/puid/tendarr.db" | sort -u)" = "1234:2345"
+          test "$(docker top puid -o pid,uid | awk 'NR > 1 { print $2 }')" = "1234"
+          docker rm -f puid
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'

@@ -19,8 +19,10 @@ RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH \
     -o /out/tendarr ./cmd/tendarr \
  && mkdir -p /out/data
 
-# distroless: no shell, no package manager, runs as an unprivileged user.
-FROM gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+# distroless: no shell, no package manager. It starts as root only so the
+# binary can hand /data to PUID:PGID; it then drops to that user before
+# opening the database or the port (see cmd/tendarr/privileges_linux.go).
+FROM gcr.io/distroless/static-debian12@sha256:d75cdd72874d4790092fcb1b058493ecf6bb5bf2b2b897045b00ff01d91843f2
 
 COPY --from=build /out/tendarr /usr/local/bin/tendarr
 COPY --from=build --chown=65532:65532 /out/data /data
@@ -32,7 +34,6 @@ ENV TENDARR_DATA_DIR=/data \
 
 VOLUME /data
 EXPOSE 8484
-USER 65532:65532
 
 HEALTHCHECK --interval=60s --timeout=5s --start-period=15s --retries=3 \
   CMD ["/usr/local/bin/tendarr", "healthcheck"]

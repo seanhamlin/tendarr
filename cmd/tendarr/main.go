@@ -107,8 +107,13 @@ func run() error {
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
+	// Before anything touches the data directory, so every file it creates
+	// belongs to PUID:PGID.
+	if err := dropPrivileges(cfg.dataDir, logger); err != nil {
+		return err
+	}
 	if err := os.MkdirAll(cfg.dataDir, 0o750); err != nil {
-		return fmt.Errorf("create data directory %s: %w (is the volume writable by uid %d?)", cfg.dataDir, err, os.Getuid())
+		return fmt.Errorf("create data directory %s: %w (%s)", cfg.dataDir, err, writableHint())
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -120,7 +125,7 @@ func run() error {
 	}
 	st, err := store.Open(ctx, dbPath)
 	if err != nil {
-		return fmt.Errorf("%w (is the volume writable by uid %d?)", err, os.Getuid())
+		return fmt.Errorf("%w (%s)", err, writableHint())
 	}
 	defer st.Close()
 
@@ -181,6 +186,11 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	return httpServer.Shutdown(shutdownCtx)
+}
+
+// writableHint explains a data directory the process cannot write to.
+func writableHint() string {
+	return fmt.Sprintf("is the volume writable by uid %d gid %d? Set PUID and PGID to the owner of the folder on the host", os.Getuid(), os.Getgid())
 }
 
 func purgeSessions(ctx context.Context, st *store.Store, logger *slog.Logger) {

@@ -39,16 +39,28 @@ so do it straight away. After that, go to **Settings** and connect your services
 
 #### Volume permissions
 
-The image runs as an unprivileged user, and the `/data` volume must be writable
-by it. The simplest fix on a NAS is to run the container as the user that owns the
-folder:
+Set `PUID` and `PGID` to the user and group that own the `/data` folder on the
+host. On Synology, `id <your-nas-user>` over SSH shows them; `1026` and `100` are
+typical for the first user created. In Container Manager's own wizard, add them
+under **Environment**; no `user` setting is needed.
 
 ```yaml
-user: "1026:100"   # `id <your-nas-user>` over SSH shows the right numbers
+environment:
+  PUID: 1026
+  PGID: 100
 ```
 
-If the volume is not writable, the container exits at startup and logs the uid it
-is running as.
+The container starts as root only long enough to give `/data` to that user and
+group, then drops to them before opening the database or the port; nothing runs
+as root after that. Files already owned correctly are left alone, so restarts are
+quick. Without `PUID`/`PGID` it uses `65532:65532`, the user earlier images ran as.
+
+Starting the container with an explicit user (`user:` in Compose, `--user` with
+`docker run`) still works: it then runs as that user, ignores `PUID`/`PGID`, and
+changes no ownership, so the folder must already be writable by it.
+
+If the volume is not writable, the container exits at startup and logs the uid and
+gid it is running as.
 
 ### Environment variables
 
@@ -56,6 +68,7 @@ Everything else is configured in the web UI. None of these are required.
 
 | Variable | Default | Purpose |
 |---|---|---|
+| `PUID` / `PGID` | `65532` | User and group to run as; `/data` is given to them at startup |
 | `TENDARR_LISTEN_ADDR` | `:8484` | Listen address |
 | `TENDARR_DATA_DIR` | `/data` | Where the SQLite database lives |
 | `TENDARR_COOKIE_SECURE` | `auto` | `auto` marks the session cookie `Secure` when the request arrived over HTTPS (directly or via `X-Forwarded-Proto`). Set `true` behind an HTTPS proxy that does not send that header |
